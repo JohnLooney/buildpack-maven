@@ -33,11 +33,11 @@ PROCESSED_ENV_VARS=""
 
 # mess around to extract env var values
 if [ ! "$ENV_VARS" = "null" ]; then 
-    ENV_VARS=( $(jq -r '.environment_variables | .[]' $BUILD_DIR/muster/muster.buildpack) )
+    ENV_VARS=( $(jq -r '.environment_variables | .[]' $BUILD_DIR/must`er/muster.buildpack) )
 
     for i in "${ENV_VARS[@]}"
     do
-        VAL=$(<$BUILD_DIR/testconfig.json jq -r ".$i")
+        VAL=$(<$BUILD_DIR/configuration_variables.json jq -r ".$i")
         PROCESSED_ENV_VARS="$PROCESSED_ENV_VARS-D#$i=$VAL "
     done
 fi
