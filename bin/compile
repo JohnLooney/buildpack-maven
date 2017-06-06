@@ -1,0 +1,61 @@
+#!/bin/sh
+# bin/compile <build-dir> <cache-dir> <env-dir>
+
+# fail fast
+set -e
+
+BP_DIR=$(cd $(dirname $0)/..; pwd) # absolute path
+BIN_DIR=$BP_DIR/bin
+LIB_DIR=$BP_DIR/lib
+. $LIB_DIR/common.sh
+
+# args
+BUILD_DIR=$1
+
+# check buildpack exists and has right config
+if [ ! -f $BUILD_DIR/muster/muster.buildpack ] ; then
+  warn "muster/muster.buildpack file is required"
+  exit 1
+else
+  step "Checking muster.buildpack file."
+  if ! jq -r . < $BUILD_DIR/muster/muster.buildpack > /dev/null
+  then
+      warn "Bad muster.buildpack file - invalid JSON"
+      exit 1
+  fi
+  PACKAGE_OPTS=$(<$BUILD_DIR/muster/muster.buildpack jq -r ".package_opts")
+  ENV_VARS=$(<$BUILD_DIR/muster/muster.buildpack jq -r ".environment_variables")
+  FATJAR_PATH=$(<$BUILD_DIR/muster/muster.buildpack jq -r ".fatjar_path")
+  FATJAR_BASENAME=$(basename "$FATJAR_PATH")
+fi
+BUILD_DIR=$1
+PROCESSED_ENV_VARS=""
+
+# mess around to extract env var values
+if [ ! "$ENV_VARS" = "null" ]; then 
+    ENV_VARS=( $(jq -r '.environment_variables | .[]' $BUILD_DIR/muster/muster.buildpack) )
+
+    for i in "${ENV_VARS[@]}"
+    do
+        VAL=$(<$BUILD_DIR/testconfig.json jq -r ".$i")
+        PROCESSED_ENV_VARS="$PROCESSED_ENV_VARS-D#$i=$VAL "
+    done
+fi
+
+BUILD_CMD="mvn $PROCESSED_ENV_VARS package $PACKAGE_OPTS"
+
+# step "Changing dir into $BUILD_DIR"
+cd $BUILD_DIR
+
+# # build app
+step "Building Maven app..."
+step "executing $BUILD_CMD"
+
+buildLogFile=$(create_build_log_file)
+
+$BUILD_CMD 2>&1 | output $buildLogFile
+
+step "copying $FATJAR_PATH to $BUILD_DIR/$FATJAR_BASENAME"
+cp $FATJAR_PATH $BUILD_DIR/$FATJAR_BASENAME
+
+finished
